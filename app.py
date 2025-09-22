@@ -22,14 +22,14 @@ twilio_client = Client(account_sid, auth_token)
 
 # -------------------- Google OAuth Config --------------------
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"     
-CLIENT_SECRETS_FILE = "/run/secrets/client_secret.json"    # <-- Render Secret File path
-CREDENTIALS_FILE = "/run/secrets/credentials.json"        # <-- optional if you pre-upload credentials
+CLIENT_SECRETS_FILE = "/etc/secrets/client_secret.json"    # <-- Render Secret File path
+CREDENTIALS_FILE = "/etc/secrets/credentials.json"        # <-- optional if you pre-upload credentials
 SCOPES = [
     "https://www.googleapis.com/auth/drive.readonly", 
     "https://www.googleapis.com/auth/spreadsheets.readonly"
 ]
 
-REDIRECT_URI = os.getenv("REDIRECT_URI", "https://chwckz12-5000.inc1.devtunnels.ms/oauth2callback")
+REDIRECT_URI = os.getenv("REDIRECT_URI", "https://svs-sms-sending.onrender.com/oauth2callback")
 
 def credentials_to_dict(credentials):
     return {
@@ -416,4 +416,5 @@ def preview_sheet():
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 

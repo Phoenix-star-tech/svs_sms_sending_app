@@ -16,7 +16,7 @@ app.secret_key = "secret_key_here"
 
 # -------------------- Twilio Config (keep in code) --------------------
 account_sid = "ACd187ce44440d09f47d36ba63539f36d2"
-auth_token = "09fc81d78c7c214eb32271c8a852db00"
+auth_token = "ee2624d765855632237d311196d32701"
 twilio_number = "+12708121647"
 twilio_client = Client(account_sid, auth_token)
 
@@ -416,5 +416,6 @@ def preview_sheet():
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 

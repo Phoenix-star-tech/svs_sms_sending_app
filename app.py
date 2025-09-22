@@ -9,27 +9,26 @@ import os
 import json
 from google.auth.transport.requests import Request
 import time
-from datetime import date
-from datetime import datetime
+from datetime import date, datetime
 
 app = Flask(__name__)
 app.secret_key = "secret_key_here"
 
-# Twilio config
+# -------------------- Twilio Config (keep in code) --------------------
 account_sid = "ACd187ce44440d09f47d36ba63539f36d2"
 auth_token = "09fc81d78c7c214eb32271c8a852db00"
 twilio_number = "+12708121647"
 twilio_client = Client(account_sid, auth_token)
 
-# Google OAuth config
+# -------------------- Google OAuth Config --------------------
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"     
-CLIENT_SECRETS_FILE = "client_secret.json"
+CLIENT_SECRETS_FILE = "/run/secrets/client_secret.json"    # <-- Render Secret File path
+CREDENTIALS_FILE = "/run/secrets/credentials.json"        # <-- optional if you pre-upload credentials
 SCOPES = [
     "https://www.googleapis.com/auth/drive.readonly", 
     "https://www.googleapis.com/auth/spreadsheets.readonly"
 ]
 
-# Use environment variable for Render deployment
 REDIRECT_URI = os.getenv("REDIRECT_URI", "https://chwckz12-5000.inc1.devtunnels.ms/oauth2callback")
 
 def credentials_to_dict(credentials):
@@ -43,15 +42,24 @@ def credentials_to_dict(credentials):
     }
 
 def save_credentials(creds):
-    with open("credentials.json", "w") as f:
+    """Secret files are read-only on Render, so save to local file instead."""
+    with open("credentials_local.json", "w") as f:
         json.dump(credentials_to_dict(creds), f)
 
 def load_credentials():
-    if os.path.exists("credentials.json"):
-        with open("credentials.json") as f:
-            data = json.load(f)
-            return data
+    """Try local file first, fallback to secret file."""
+    if os.path.exists("credentials_local.json"):
+        with open("credentials_local.json") as f:
+            return json.load(f)
+    elif os.path.exists(CREDENTIALS_FILE):
+        with open(CREDENTIALS_FILE) as f:
+            return json.load(f)
     return None
+
+# -------------------- Utility Functions --------------------
+PHONE_RE = re.compile(r'^\+\d{10,15}$')
+def is_valid_phone(phone: str) -> bool:
+    return bool(PHONE_RE.match(phone))
 
 def fetch_sheet_values(service, spreadsheet_id, range_name):
     max_retries = 5
@@ -71,11 +79,7 @@ def fetch_sheet_values(service, spreadsheet_id, range_name):
                 raise
     raise Exception("Failed to fetch sheet after multiple retries")
 
-PHONE_RE = re.compile(r'^\+\d{10,15}$')
-
-def is_valid_phone(phone: str) -> bool:
-    return bool(PHONE_RE.match(phone))
-
+# -------------------- Routes --------------------
 @app.route("/")
 def index():
     creds_data = load_credentials()
@@ -85,9 +89,7 @@ def index():
 
 @app.route("/authorize")
 def authorize():
-    # Remove old credentials
     session.pop("credentials", None)
-
     flow = Flow.from_client_secrets_file(
         CLIENT_SECRETS_FILE,
         scopes=SCOPES,
@@ -117,9 +119,7 @@ def oauth2callback():
         return "No refresh token. Remove app access in Google account and try again.", 400
 
     session["credentials"] = credentials_to_dict(creds)
-
     save_credentials(creds)
-
     return redirect(url_for("list_sheets"))
 
 @app.route("/list_sheets")
@@ -128,15 +128,7 @@ def list_sheets():
     if not creds_data:
         return redirect(url_for("authorize"))
 
-    creds = Credentials(
-        token=creds_data["token"],
-        refresh_token=creds_data["refresh_token"],
-        token_uri=creds_data["token_uri"],
-        client_id=creds_data["client_id"],
-        client_secret=creds_data["client_secret"],
-        scopes=creds_data["scopes"],
-    )
-
+    creds = Credentials(**creds_data)
     drive_service = build("drive", "v3", credentials=creds)
 
     results = drive_service.files().list(
@@ -147,6 +139,7 @@ def list_sheets():
 
     return render_template("sheets.html", files=files)
 
+# -------------------- Send SMS --------------------
 @app.route("/send_sms", methods=["POST"])
 def send_sms():
     sheet_id = request.form.get("sheet_id")
@@ -157,20 +150,9 @@ def send_sms():
     if not creds_data:
         return redirect(url_for("authorize"))
 
-    creds = Credentials(
-        token=creds_data["token"],
-        refresh_token=creds_data["refresh_token"],
-        token_uri=creds_data["token_uri"],
-        client_id=creds_data["client_id"],
-        client_secret=creds_data["client_secret"],
-        scopes=creds_data["scopes"],
-    )
-
+    creds = Credentials(**creds_data)
     sheets_service = build("sheets", "v4", credentials=creds)
-    result = sheets_service.spreadsheets().values().get(
-        spreadsheetId=sheet_id,
-        range="A:Z"
-    ).execute()
+    result = sheets_service.spreadsheets().values().get(spreadsheetId=sheet_id, range="A:Z").execute()
 
     rows = result.get("values", [])
     if not rows:
@@ -184,7 +166,7 @@ def send_sms():
         name_index = normalized_header.index("name")
         hallticket_index = normalized_header.index("hallticket")
         date_index = normalized_header.index("date")
-        attendance_index = normalized_header.index("attendance")   # 👈 NEW
+        attendance_index = normalized_header.index("attendance")
     except ValueError as e:
         return f"Missing column in sheet: {e}", 400
 
@@ -195,7 +177,6 @@ def send_sms():
         row_date = row[date_index].strip() if len(row) > date_index else ""
         attendance = row[attendance_index].strip().lower() if len(row) > attendance_index else ""
 
-        # Check today's date + attendance
         if row_date != today_str or attendance == "present":
             continue
 
@@ -208,11 +189,7 @@ def send_sms():
                 phone = "+91" + phone
 
             message_body = f"Hi {name}, hallticket no {hallticket}, you were marked absent today."
-            twilio_client.messages.create(
-                body=message_body,
-                from_=twilio_number,
-                to=phone
-            )
+            twilio_client.messages.create(body=message_body, from_=twilio_number, to=phone)
             count += 1
 
     flash(f"✅ SMS sent to {count} absentees!")
@@ -439,3 +416,4 @@ def preview_sheet():
 
 if __name__ == "__main__":
     app.run(debug=True)
+

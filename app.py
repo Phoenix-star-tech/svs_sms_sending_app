@@ -15,9 +15,10 @@ app = Flask(__name__)
 app.secret_key = "secret_key_here"
 
 # -------------------- Twilio Config (keep in code) --------------------
-account_sid = "ACd187ce44440d09f47d36ba63539f36d2"
-auth_token = "ee2624d765855632237d311196d32701"
-twilio_number = "+12708121647"
+# Twilio config from env
+account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+twilio_number = os.getenv("TWILIO_NUMBER")
 twilio_client = Client(account_sid, auth_token)
 
 # -------------------- Google OAuth Config --------------------
@@ -416,6 +417,7 @@ def preview_sheet():
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

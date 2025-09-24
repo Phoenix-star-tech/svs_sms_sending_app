@@ -189,7 +189,13 @@ def send_sms():
             if not phone.startswith("+"):
                 phone = "+91" + phone
 
-            message_body = f"Hi {name}, hallticket no {hallticket}, you were marked absent today."
+            message_body = f"""Dear Parent,
+            Your Son/Daughter {name} ({hallticket})
+            is absent for college on {date}.
+            Please ensure Regular Attendance.
+                      Principal
+                      SVSGOI"""
+
             twilio_client.messages.create(body=message_body, from_=twilio_number, to=phone)
             count += 1
 
@@ -417,6 +423,7 @@ def preview_sheet():
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

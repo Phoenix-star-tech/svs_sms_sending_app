@@ -263,7 +263,7 @@ def stream_send_sms():
         name_index = normalized_header.index("name")
         hallticket_index = normalized_header.index("hallticket")
         date_index = normalized_header.index("date")
-        attendance_index = normalized_header.index("attendance")  # 👈 NEW
+        attendance_index = normalized_header.index("attendance") 
     except ValueError as e:
         def missing_col(e=e):
             yield f"data: {json.dumps({'status':'error','msg':f'Missing column in sheet: {str(e)}'})}\n\n"
@@ -428,6 +428,7 @@ def preview_sheet():
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 
